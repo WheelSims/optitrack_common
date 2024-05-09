@@ -100,7 +100,7 @@ def start() -> None:
     while not _streaming_client.connected():
         time.sleep(1)
 
-    print("Connected to the server.")  # Indicates successful connection to the NatNet server
+    print("Connected to the server. Receiving data...")  # Indicates successful connection to the NatNet server
 
 
 
@@ -127,4 +127,5 @@ def clear() -> None:
     """
     _positions.clear()
     _times.clear()
+    
 

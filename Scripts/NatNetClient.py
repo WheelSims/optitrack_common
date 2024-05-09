@@ -1465,15 +1465,15 @@ class NatNetClient:
         self.__nat_net_stream_version_server[3]=nnsvs[3]
         if (self.__nat_net_requested_version[0] == 0) and\
            (self.__nat_net_requested_version[1] == 0):
-            print("resetting requested version to %d %d %d %d from %d %d %d %d"%(
-                self.__nat_net_stream_version_server[0],
-                self.__nat_net_stream_version_server[1],
-                self.__nat_net_stream_version_server[2],
-                self.__nat_net_stream_version_server[3],
-                self.__nat_net_requested_version[0],
-                self.__nat_net_requested_version[1],
-                self.__nat_net_requested_version[2],
-                self.__nat_net_requested_version[3]))
+           # print("resetting requested version to %d %d %d %d from %d %d %d %d"%(
+            #    self.__nat_net_stream_version_server[0],
+             #   self.__nat_net_stream_version_server[1],
+              #  self.__nat_net_stream_version_server[2],
+               # self.__nat_net_stream_version_server[3],
+                #self.__nat_net_requested_version[0],
+                #self.__nat_net_requested_version[1],
+                #self.__nat_net_requested_version[2],
+                #self.__nat_net_requested_version[3]))
 
             self.__nat_net_requested_version[0] = self.__nat_net_stream_version_server[0]
             self.__nat_net_requested_version[1] = self.__nat_net_stream_version_server[1]
@@ -1713,12 +1713,12 @@ class NatNetClient:
             packet_size = len( command_str ) + 1
         elif command == self.NAT_CONNECT :
             tmp_version=[4,1,0,0]
-            print("NAT_CONNECT to Motive with %d %d %d %d\n"%(
-                tmp_version[0],
-                tmp_version[1],
-                tmp_version[2],
-                tmp_version[3]
-            ))
+            #print("NAT_CONNECT to Motive with %d %d %d %d\n"%(
+              #  tmp_version[0],
+               # tmp_version[1],
+                #tmp_version[2],
+                #tmp_version[3]
+            #))
             #allocate a byte array for 270 bytes
             # to connect with a specific version
             # The first 4 bytes spell out "Ping"
