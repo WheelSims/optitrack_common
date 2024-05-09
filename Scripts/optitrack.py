@@ -1,9 +1,28 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Apr 24 11:12:24 2024
+#
+# Copyright 2024 Laboratoire de recherche en mobilité et sport adapté
 
-@author: User
-"""
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Module that receives a single streamed rigid body from Optitrack."""
+
+__author__ = "Laboratoire de recherche en mobilité et sport adapté"
+__copyright__ = (
+    "Copyright (C) 2024 Laboratoire de recherche en mobilité et sport adapté"
+)
+__email__ = "chenier.felix@uqam.ca"
+__license__ = "Apache 2.0"
 
 import sys
 import time
@@ -11,60 +30,62 @@ from NatNetClient import NatNetClient
 import kineticstoolkit.lab as ktk
 import numpy as np
 
+# Maximal number of frames to keep in memory
+frame_limit = 1000
+
 # Initialize empty lists to store positions and timestamps
 _positions = []  # Initialize empty lists to store positions
-_times = []      # and timestamps
-# Frame limit to retain
-frame_limit = 1000
-# First system time
-first_system_time = time.time()
-# Create a global variable for the NatNet client
+_times = []  # and timestamps
+
+# Initial system time (to calculate time stamps relative to import time)
+_initial_system_time = time.time()
+
+# Global variable for the NatNet client
 _streaming_client = NatNetClient()
 
 
-def receive_rigid_body_frame(new_id: int, position: np.ndarray, orientation: np.ndarray) -> None:
+def receive_rigid_body_frame(
+    new_id: int, position: np.ndarray, orientation: np.ndarray
+) -> None:  # ignore: D401
     """
-    Callback function to receive rigid body data.
-
-    This function is called whenever a new rigid body frame is received.
+    Add a new received rigid body data (used as callback).
 
     Parameters
     ----------
-    new_id: int
+    new_id
         The ID of the rigid body.
-    position: np.ndarray
+    position
         The position of the rigid body as a NumPy array.
-    orientation: np.ndarray
+    orientation
         The orientation of the rigid body as a NumPy array.
 
     Returns
     -------
     None
 
-    """ 
+    """
     # Calculate elapsed time since the first frame
-    relative_time = time.time() - first_system_time
+    relative_time = time.time() - _initial_system_time
 
     # Add position and timestamp
-    position_with1 = np.append(position, 1.0)
-    _positions.append(position_with1)
+    _positions.append(np.append(position, 1.0))
     _times.append(relative_time)
 
     # If frame count exceeds limit, remove oldest frames
     if len(_positions) > frame_limit:
         _positions.pop(0)
         _times.pop(0)
-        
-        
+
 
 def fetch() -> ktk.TimeSeries:
     """
-    Create and return a timeseries from the current state of positions and times lists.
+    Get a TimeSeries from the current position and time lists.
 
     Returns
     -------
     ktk.TimeSeries
-        A time series object containing the positions of rigid bodies over time.
+        A time series object containing the position of the rigid bodies over
+        time.
 
     """
     # Convert lists of times and positions to numpy arrays
@@ -72,10 +93,9 @@ def fetch() -> ktk.TimeSeries:
     positions_np = np.array(_positions)
 
     # Create the timeseries
-    ts = ktk.TimeSeries(data={'Position': positions_np}, time=times_np)
+    ts = ktk.TimeSeries(data={"Position": positions_np}, time=times_np)
 
     return ts
-
 
 
 def start() -> None:
@@ -93,20 +113,23 @@ def start() -> None:
     # Start NatNet client
     is_running = _streaming_client.run()
     if not is_running:
-        print("ERROR: Could not start streaming client.")  # Indicates an error if the streaming client fails to start
+        print(
+            "ERROR: Could not start streaming client."
+        )  # Indicates an error if the streaming client fails to start
         sys.exit(1)
 
     # Wait for client to connect
     while not _streaming_client.connected():
         time.sleep(1)
 
-    print("Connected to the server. Receiving data...")  # Indicates successful connection to the NatNet server
-
+    print(
+        "Connected to the server. Receiving data..."
+    )  # Indicates successful connection to the NatNet server
 
 
 def stop() -> None:
     """
-    Stop receiving data from NatNet
+    Stop receiving data from NatNet.
 
     Returns
     -------
@@ -116,16 +139,15 @@ def stop() -> None:
     # Stop NatNet client
     _streaming_client.shutdown()
 
+
 def clear() -> None:
     """
-    Clear positions and times lists
-    
+    Clear positions and times lists.
+
     Returns
     -------
     None
-    
+
     """
     _positions.clear()
     _times.clear()
-    
-
