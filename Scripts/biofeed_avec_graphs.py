@@ -70,6 +70,8 @@ def detect_events(ts, added_events):
     # Combine the detection of thrusts and recoveries into one loop
     push_angles = []
     recovery_distances = []
+    push_positions = []
+    recovery_positions = []
 
     for push_index in pushes_indices:
         nearest_recovery_index = next((i for i in reco_indices if i > push_index), None)
@@ -77,6 +79,8 @@ def detect_events(ts, added_events):
             thrusts_indices.append((push_index, nearest_recovery_index))
             push_position = ts.data["Position"][push_index]
             recovery_position = ts.data["Position"][nearest_recovery_index]
+            push_positions.append(push_position)
+            recovery_positions.append(recovery_position)
             push_angle = calculate_push_angle(push_position, recovery_position)
             push_angles.append(push_angle)
 
@@ -114,7 +118,7 @@ def detect_events(ts, added_events):
             ts = ts.add_event(three_recovery_time, "three_recoveries")
             added_events.add((three_recovery_time, "three_recoveries"))
 
-    return ts, added_events, pushes_indices, reco_indices, average_push_angles, minimum_recovery_distances
+    return ts, added_events, pushes_indices, reco_indices, push_positions, recovery_positions, average_push_angles, minimum_recovery_distances
 
 
 
@@ -275,33 +279,105 @@ def plot_min_distance_setup(ax):
     ax.grid(True, which='both')  # Major and minor grid lines
     ax.minorticks_on()  # Enable minor ticks
 
-def update_plot(ax1, ax2, push_positions, recovery_positions, minimum_recovery_distances):
-    # Mise à jour du graphique de la roue
+# def update_plot(ax1, ax2, push_positions, recovery_positions, minimum_recovery_distances):
+#     # Mise à jour du graphique de la roue
+#     ax1.clear()
+#     # Code pour plotter la roue et les positions des push et recovery
+#     ax1.scatter(push_positions[:, 0], push_positions[:, 1], color='blue', label='Poussées', zorder=5)
+#     ax1.scatter(recovery_positions[:, 0], recovery_positions[:, 1], color='red', label='Récupérations', zorder=5)
+#     ax1.legend()
+
+#     # Mise à jour du graphique des distances minimales toutes les 3 récupérations
+#     ax2.clear()
+#     plot_min_distance_setup(ax2)
+
+#     # Calculer et afficher la moyenne des distances minimales toutes les 3 récupérations
+#     if len(minimum_recovery_distances) >= 3:
+#         averaged_distances = []
+#         for i in range(0, len(minimum_recovery_distances), 3):
+#             if i + 3 <= len(minimum_recovery_distances):
+#                 distances_for_three_recoveries = minimum_recovery_distances[i:i + 3]
+#                 avg_min_distance = np.mean(distances_for_three_recoveries)
+#                 averaged_distances.append(avg_min_distance)
+#                 # Afficher la moyenne en temps réel sur le graphique
+#                 ax2.axhline(y=avg_min_distance, color='r', linestyle='-', linewidth=2, label=f'Moyenne en temps réel: {avg_min_distance:.2f}')
+
+#     # Ajouter la légende une seule fois après avoir tracé toutes les moyennes
+#     if averaged_distances:
+#         ax2.legend()
+
+#     plt.draw()
+#     plt.pause(0.01)
+
+
+def update_push_angle_plot(ax1, push_positions, recovery_positions):
     ax1.clear()
     plot_wheel_setup(ax1)
-    ax1.scatter(push_positions[:, 0], push_positions[:, 1], color='blue', label='Poussées', zorder=5)
-    ax1.scatter(recovery_positions[:, 0], recovery_positions[:, 1], color='red', label='Récupérations', zorder=5)
+
+    # Calculer les moyennes des positions des pushes toutes les 3 poussées
+    average_push_positions = []
+    average_recovery_positions = []
+    for i in range(2, len(push_positions), 3):
+        avg_push_position = np.mean(push_positions[i - 2:i + 1], axis=0)
+        avg_recovery_position = np.mean(recovery_positions[i - 2:i + 1], axis=0)
+        average_push_positions.append(avg_push_position)
+        average_recovery_positions.append(avg_recovery_position)
+    
+    # Tracer la ligne des moyennes des positions des pushes
+    if average_push_positions:
+        ax1.plot([pos[0] for pos in average_push_positions], 
+                 [pos[1] for pos in average_push_positions], 
+                 marker='o', linestyle='-', color='b', label='Positions moyennes des pushes')
+
+    # Tracer l'angle de poussée jusqu'au recovery pour chaque groupe de 3 poussées
+    for i in range(len(average_push_positions)):
+        push_position = average_push_positions[i]
+        recovery_position = average_recovery_positions[i]
+        ax1.plot([push_position[0], recovery_position[0]], 
+                 [push_position[1], recovery_position[1]], 
+                 linestyle='--', color='g', label=f'Angle de poussée pour le groupe {i + 1}')
+
+    # Configurer les axes et légendes pour le premier graphique
+    ax1.set_xlabel('X Position (m)')
+    ax1.set_ylabel('Y Position (m)')
+    ax1.set_title('Positions moyennes des pushes et angles de poussée jusqu\'au recovery')
     ax1.legend()
 
-    # Mise à jour du graphique des distances minimales
-    ax2.clear()
-    plot_min_distance_setup(ax2)
+    # Afficher le graphique
+    plt.tight_layout()
+    plt.draw()
+    plt.pause(0.01)
+
+
+
+
+
+# Fonction pour mettre à jour le graphique des distances minimales
+def update_min_distance_plot(ax, minimum_recovery_distances):
+    ax.clear()
+    plot_min_distance_setup(ax)
+
+    averaged_distances = []
 
     if len(minimum_recovery_distances) >= 3:
         for i in range(2, len(minimum_recovery_distances), 3):
             distances_for_three_recoveries = minimum_recovery_distances[i - 2:i + 1]
             avg_min_distance = np.mean(distances_for_three_recoveries)
-            minimum_recovery_distances.append(avg_min_distance)
-            # three_recovery_time = ts.time[recoveries_indices[i][0]]
-            # if (three_recovery_time, "three_recoveries") not in added_events:
-            #     print(f"Average minimum distance for 3 recoveries: {avg_min_distance:.2f} m")
-            #     ts = ts.add_event(three_recovery_time, "three_recoveries")
-            #     added_events.add((three_recovery_time, "three_recoveries"))
-            ax2.axhline(y=avg_min_distance, color='r', linestyle='-', linewidth=2, label=f'Moyenne en temps réel: {avg_min_distance:.2f}')
-            ax2.legend()
+            averaged_distances.append(avg_min_distance)
+
+        # Tracer uniquement la dernière moyenne calculée
+        if averaged_distances:
+            ax.axhline(y=averaged_distances[-1], color='r', linestyle='-', linewidth=2, label=f'Moyenne en temps réel: {averaged_distances[-1]:.2f}')
+
+    # Ajouter la légende une seule fois après avoir tracé la dernière moyenne
+    if averaged_distances:
+        ax.legend()
 
     plt.draw()
     plt.pause(0.01)
+
+
+
 
 
 
@@ -312,16 +388,11 @@ def main():
     minimum_recovery_distances = []
     average_push_positions = []
     average_recovery_positions = []
-    pushes_indices = []  # Initialize pushes_indices at the start of main()
-    avg_push_positions = []  # Initialize average push positions list
-    avg_recovery_positions = []  # Initialize average recovery positions list
+    pushes_indices = []
+    avg_push_positions = []
+    avg_recovery_positions = []
+    average_min_distances = []
 
-    # # Initial plot setup
-    # plt.ion()  # Enable interactive mode
-    # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
-    # plot_initial_setup(ax1)
-    
-    # Initial plot setup
     plt.ion()  # Enable interactive mode
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
     plot_wheel_setup(ax1)
@@ -331,6 +402,7 @@ def main():
     recovery_scatter = ax1.scatter([], [], color='red', label='Recoveries', zorder=5)
     avg_push_scatter = ax1.scatter([], [], color='green', label='Average Pushes', zorder=10)
     avg_recovery_scatter = ax1.scatter([], [], color='orange', label='Average Recoveries', zorder=10)
+
 
     try:
         while True:
@@ -358,7 +430,7 @@ def main():
                     continue
 
                 #ts_resampled, added_events, pushes_indices, reco_indices, _, _ = detect_events(ts_resampled, added_events)
-                ts_resampled, added_events, pushes_indices, reco_indices, average_push_angles, minimum_recovery_distances = detect_events(ts_resampled, added_events)
+                ts_resampled, added_events, pushes_indices, reco_indices, push_positions, recovery_positions, average_push_angles, minimum_recovery_distances = detect_events(ts_resampled, added_events)
 
                 # Update push and recovery positions on the plot
                 push_positions = ts_resampled.data["Position"][pushes_indices][:, :2]
@@ -368,14 +440,31 @@ def main():
                 push_positions_adjusted = push_positions - wheel_center_position[:2]
                 recovery_positions_adjusted = recovery_positions - wheel_center_position[:2]
                 
-                # Calculer la distance minimale entre la main et le centre de la roue pour chaque récupération
-                if len(recovery_positions_adjusted) >= 1:
-                    distances = np.linalg.norm(recovery_positions_adjusted[-1])
-                    min_distance = np.min(distances)
-                    minimum_recovery_distances.append(min_distance)
+                # # Calculer la distance minimale entre chaque récupération et la dernière poussée correspondante
+                # if len(pushes_indices) > 0 and len(reco_indices) > 0:
+                #     last_push_index = pushes_indices[-1]
+                #     for recovery_index in reco_indices:
+                #         if recovery_index > last_push_index:
+                #             min_distance = np.linalg.norm(ts_resampled.data['Position'][recovery_index][:3] - ts_resampled.data['Position'][last_push_index][:3])
+                #             minimum_recovery_distances.append(min_distance)
+                
+                # # Dans la boucle principale, après avoir calculé les distances minimales entre chaque récupération et poussée
+                # if len(minimum_recovery_distances) >= 3 and len(minimum_recovery_distances) % 3 == 0:
+                #     last_three_distances = minimum_recovery_distances[-3:]
+                #     avg_min_distance = np.mean(last_three_distances)
+                #     average_min_distances.append(avg_min_distance)
 
-                # Mettre à jour les graphiques
-                update_plot(ax1, ax2, push_positions_adjusted, recovery_positions_adjusted, minimum_recovery_distances)
+                # update_plot(ax1, ax2, push_positions, recovery_positions, minimum_recovery_distances)
+                
+                update_push_angle_plot(ax1, push_positions, recovery_positions)
+                update_min_distance_plot(ax2, minimum_recovery_distances)
+                plt.show()
+
+
+
+
+
+
 
                 # push_scatter.set_offsets(push_positions_adjusted)
                 # recovery_scatter.set_offsets(recovery_positions_adjusted)
