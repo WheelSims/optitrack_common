@@ -13,11 +13,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Initialize the wheel center position
-wheel_center_position = np.array([-0.208820, 0.580740, 0.665375, 1])
+wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
 # Initialize the wheel radius
 wheel_radius = 0.255
 # Initialize the user arm extended distance between his hand and the wheel center
-user_arm_extended_distance = 0.158
+user_arm_extended_distance = 0.150
+threshold_min = -8
+threshold_max = 7
 
 
 def detect_events(ts, added_events):
@@ -53,7 +55,9 @@ def detect_events(ts, added_events):
         ):
             if velocity_x > 0:
                 # Check for a negative peak in acceleration
-                if acceleration_x < -8:  # Ensure it exceeds the threshold
+                if (
+                    acceleration_x < threshold_min
+                ):  # Ensure it exceeds the threshold
                     if (
                         ts.data["Acceleration"][i - 1][0]
                         > acceleration_x
@@ -64,7 +68,9 @@ def detect_events(ts, added_events):
                             last_event = "push"
             elif velocity_x < 0:
                 # Check for a positive peak in acceleration
-                if acceleration_x > 7:  # Ensure it exceeds the threshold
+                if (
+                    acceleration_x > threshold_max
+                ):  # Ensure it exceeds the threshold
                     if (
                         ts.data["Acceleration"][i - 1][0]
                         < acceleration_x
@@ -114,12 +120,14 @@ def detect_events(ts, added_events):
         if nearest_push_index is not None:
             recoveries_indices.append((recovery_index, nearest_push_index))
             # Calculate the distances between this recovery and the next push
-            distances = [
+            distances_marker = [
                 np.linalg.norm(
                     ts.data["Position"][j][:3] - wheel_center_position[:3]
                 )
                 for j in range(recovery_index, nearest_push_index)
             ]
+            distances_marker = np.array(distances_marker)
+            distances = np.sqrt((distances_marker**2) - (0.055**2))
             recovery_distances.append(distances)
 
     # Calculate the minimum distance for each recovery
@@ -259,7 +267,7 @@ def plot_min_distance_setup(ax):
     # Draw the ideal hand position zone
     ideal_zone_bottom = user_arm_extended_distance
     ideal_zone_top = (
-        user_arm_extended_distance + 0.15
+        user_arm_extended_distance + 0.05
     )  # 15 cm above maximum extension
     ideal_zone_rect = plt.Rectangle(
         (-0.05, ideal_zone_bottom),
@@ -361,6 +369,7 @@ def update_push_angle_plot(
 
 
 def update_min_distance_plot(ax, minimum_recovery_distances):
+
     ax.clear()
     plot_min_distance_setup(ax)
 
@@ -392,6 +401,38 @@ def update_min_distance_plot(ax, minimum_recovery_distances):
     plt.pause(0.01)
 
 
+def update_min_distance_plot(ax, minimum_recovery_distances):
+    ax.clear()
+    plot_min_distance_setup(ax)
+
+    averaged_distances = []
+
+    if len(minimum_recovery_distances) >= 3:
+        for i in range(2, len(minimum_recovery_distances), 3):
+            distances_for_three_recoveries = minimum_recovery_distances[
+                i - 2 : i + 1
+            ]
+            avg_min_distance = np.mean(distances_for_three_recoveries)
+            averaged_distances.append(avg_min_distance)
+
+        # Tracer uniquement la dernière moyenne calculée
+        if averaged_distances:
+            ax.axhline(
+                y=averaged_distances[-1],
+                color="r",
+                linestyle="-",
+                linewidth=2,
+                label=f"Moyenne en temps réel: {averaged_distances[-1]:.2f}",
+            )
+
+    # Ajouter la légende une seule fois après avoir tracé la dernière moyenne
+    if averaged_distances:
+        ax.legend()
+
+    plt.draw()
+    plt.pause(0.01)
+
+
 def main():
     ot.start()
     ts = ktk.TimeSeries()
@@ -403,6 +444,7 @@ def main():
     avg_push_positions = []
     avg_recovery_positions = []
     average_min_distances = []
+    average_push_angles = []
 
     plt.ion()  # Enable interactive mode
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
@@ -482,35 +524,6 @@ def main():
                 update_min_distance_plot(ax2, minimum_recovery_distances)
                 plt.show()
 
-                # push_scatter.set_offsets(push_positions_adjusted)
-                # recovery_scatter.set_offsets(recovery_positions_adjusted)
-
-                # # Calculate average positions every 3 pushes and recoveries
-                # if len(pushes_indices) >= 3:
-                #     avg_push_x = np.mean(push_positions[-3:, 0])
-                #     avg_push_y = -np.mean(push_positions[-3:, 1])  # Invert y-coordinate for upper part
-                #     avg_push_positions.append((avg_push_x, avg_push_y))
-
-                #     avg_recovery_x = np.mean(recovery_positions[-3:, 0])
-                #     avg_recovery_y = -np.mean(recovery_positions[-3:, 1])  # Invert y-coordinate for upper part
-                #     avg_recovery_positions.append((avg_recovery_x, avg_recovery_y))
-
-                #     avg_push_scatter.set_offsets(avg_push_positions[-1:])
-                #     avg_recovery_scatter.set_offsets(avg_recovery_positions[-1:])
-
-                #     avg_push_positions_adjusted = avg_push_positions - wheel_center_position[:2]
-                #     avg_recovery_positions_adjusted = avg_recovery_positions - wheel_center_position[:2]
-                #     # Print average positions for debugging purposes
-                #     print(f"Average Push Position: {avg_push_positions_adjusted[-1]}")
-                #     print(f"Average Recovery Position: {avg_recovery_positions_adjusted[-1]}")
-
-                # # Redraw the plot
-                # plt.draw()
-                # plt.pause(0.01)  # Pause to update the plot
-
-                # # Plot real-time data including the new biofeedback mechanism
-                # plot_real_time_data(ax, push_positions_adjusted, recovery_positions_adjusted, average_push_angles, minimum_recovery_distances)
-
             # Sleep for a short duration to avoid overloading the loop
             time.sleep(0.01)
 
@@ -518,6 +531,37 @@ def main():
         pass
 
     finally:
+        # Ensure unique timestamps in new_ts
+        if new_ts is not None and new_ts.time.size > 0:
+            unique_times, unique_indices = np.unique(
+                new_ts.time, return_index=True
+            )
+            new_ts.data["Position"] = new_ts.data["Position"][unique_indices]
+            new_ts.time = unique_times
+
+        # Calculate push rate
+        push_rate = calculate_push_rate(ts, pushes_indices)
+
+        # Create a DataFrame
+        data = {
+            "Average Push Angles (degrees)": average_push_angles,
+            "Minimum Distances (meters)": minimum_recovery_distances,
+            "Push Rate (pushes/sec)": [push_rate]
+            * len(average_push_angles),  # Repeat the push rate for each row
+        }
+        df = pd.DataFrame(data)
+        df = df.round(
+            2
+        )  # Round all values in the DataFrame to two decimal places
+        print(df)
+
+        # Save DataFrame to CSV
+        df.to_csv("output_data.csv", index=False)
+
+        # Plot new_ts if it has unique timestamps
+        if new_ts is not None:
+            new_ts.plot()
+
         ot.stop()
 
 
