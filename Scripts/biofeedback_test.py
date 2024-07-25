@@ -15,8 +15,8 @@ import time
 wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
 # Initialize the wheel radius
 wheel_radius = 0.255
-threshold_min = -8
-threshold_max = 7
+threshold_min = -4
+threshold_max = 6
 
 
 def detect_events(ts):
@@ -145,15 +145,14 @@ def main():
                 if user_input.lower() == "q":
                     break
 
+            plt.pause(0.1)
+
     except KeyboardInterrupt:
         pass
 
     finally:
         # Stop the OptiTrack connection
         ot.stop()
-
-    # Plot the movement between the first and second push events
-    # plot_pushes(ts, 'push', 'push', occurrence1=0, occurrence2=1, inclusive=False)
 
 
 if __name__ == "__main__":

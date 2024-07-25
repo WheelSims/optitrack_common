@@ -17,9 +17,13 @@ wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
 # Initialize the wheel radius
 wheel_radius = 0.255
 # Initialize the user arm extended distance between his hand and the wheel center
-user_arm_extended_distance = 0.150
-threshold_min = -8
+user_arm_extended_distance = 0.148
+threshold_min = -6
 threshold_max = 7
+average_push_position = [0.63019762, 0.84031197]
+average_recovery_position = [0.33883759, 0.87112703]
+average_min_distance = 0.23
+frequency_average = 3
 
 
 def detect_events(ts, added_events):
@@ -85,7 +89,9 @@ def detect_events(ts, added_events):
         event_time = ts.time[idx]
         if (event_time, "push") not in added_events:
             ts = ts.add_event(event_time, "push")
-            added_events.add((event_time, "push"))
+            added_events.add(
+                (event_time, "push")
+            )  # FC Workaround duplicate events
 
     # Add events for detected recoveries
     for idx in reco_indices:
@@ -140,37 +146,43 @@ def detect_events(ts, added_events):
     minimum_recovery_distances = []
 
     for i in range(2, len(push_angles), 3):
-        average_angle = np.mean(push_angles[i - 2 : i + 1])
-        average_push_angles.append(average_angle)
-        three_push_time = ts.time[thrusts_indices[i][0]]
-        if (three_push_time, "three_pushes") not in added_events:
-            print(
-                f"Average push angle for 3 pushes: {average_angle:.2f} degrees"
+        if len(push_angles[i - frequency_average - 1 : i + 1]) > 0:
+            average_angle = np.mean(
+                push_angles[i - frequency_average - 1 : i + 1]
             )
-            ts = ts.add_event(three_push_time, "three_pushes")
-            added_events.add((three_push_time, "three_pushes"))
+            average_push_angles.append(average_angle)
+            three_push_time = ts.time[thrusts_indices[i][0]]
+            if (three_push_time, "three_pushes") not in added_events:
+                print(
+                    f"Average push angle for {frequency_average} pushes: {average_angle:.2f} degrees"
+                )
+                ts = ts.add_event(three_push_time, "three_pushes")
+                added_events.add((three_push_time, "three_pushes"))
 
     for i in range(2, len(min_recovery_distances), 3):
-        distances_for_three_recoveries = min_recovery_distances[i - 2 : i + 1]
-        avg_min_distance = np.mean(distances_for_three_recoveries)
-        minimum_recovery_distances.append(avg_min_distance)
-        three_recovery_time = ts.time[recoveries_indices[i][0]]
-        if (three_recovery_time, "three_recoveries") not in added_events:
-            print(
-                f"Average minimum distance for 3 recoveries: {avg_min_distance:.2f} m"
-            )
-            ts = ts.add_event(three_recovery_time, "three_recoveries")
-            added_events.add((three_recovery_time, "three_recoveries"))
+        if len(push_angles[i - frequency_average - 1 : i + 1]) > 0:
+            distances_for_three_recoveries = min_recovery_distances[
+                i - frequency_average - 1 : i + 1
+            ]
+            avg_min_distance = np.mean(distances_for_three_recoveries)
+            minimum_recovery_distances.append(avg_min_distance)
+            three_recovery_time = ts.time[recoveries_indices[i][0]]
+            if (three_recovery_time, "three_recoveries") not in added_events:
+                print(
+                    f"Average minimum distance for {frequency_average} recoveries: {avg_min_distance:.2f} m"
+                )
+                ts = ts.add_event(three_recovery_time, "three_recoveries")
+                added_events.add((three_recovery_time, "three_recoveries"))
 
     return (
-        ts,
-        added_events,
-        pushes_indices,
-        reco_indices,
-        push_positions,
-        recovery_positions,
-        average_push_angles,
-        minimum_recovery_distances,
+        ts,  # TimeSeries d'entrée avec les events ajoutés
+        added_events,  # Liste d'events (workaround duplicata d'events dans ts)
+        pushes_indices,  # Liste des indices des poussées
+        reco_indices,  # Liste des indices des recouvrements
+        push_positions,  # Liste de positions (x, y, z, 1)
+        recovery_positions,  # Liste de positions (x, y, z, 1)
+        average_push_angles,  # Liste des push angles
+        minimum_recovery_distances,  # Liste de distances minimal centre de la roue-main
     )
 
 
@@ -208,99 +220,116 @@ def calculate_push_rate(ts, pushes_indices):
         return 0
 
 
-def plot_wheel_setup(ax):
+def plot_wheel_setup(ax, average_push_position, average_recovery_position):
     # Draw the wheel
     wheel_circle = plt.Circle(
         (0, 0), wheel_radius, color="b", fill=False, linestyle="-", linewidth=2
     )
     ax.add_patch(wheel_circle)
 
-    # Define the reference angle and valid angle zone
-    reference_angle = 5 * np.pi / 6
-    valid_angle_start_deg = 85
-    valid_angle_end_deg = 100
+    # Define the ideal zone extent (10%)
+    push_zone_extent = 0.1 * wheel_radius
+    recovery_zone_extent = 0.1 * wheel_radius
 
-    # Convert angles to radians (in the counterclockwise direction)
-    valid_angle_start_rad = reference_angle - np.deg2rad(valid_angle_start_deg)
-    valid_angle_end_rad = reference_angle - np.deg2rad(valid_angle_end_deg)
+    # Calculate the angular extent for the ideal zones
+    push_avg_angle = np.arctan2(
+        average_push_position[1], average_push_position[0]
+    )
+    recovery_avg_angle = np.arctan2(
+        average_recovery_position[1], average_recovery_position[0]
+    )
 
-    # Generate arc points for the valid angle zone
-    arc1 = np.linspace(valid_angle_start_rad, valid_angle_end_rad, 100)
+    # Calculate the ideal zone angles
+    push_zone_start_rad = push_avg_angle - push_zone_extent / wheel_radius
+    push_zone_end_rad = push_avg_angle + push_zone_extent / wheel_radius
+    recovery_zone_start_rad = (
+        recovery_avg_angle - recovery_zone_extent / wheel_radius
+    )
+    recovery_zone_end_rad = (
+        recovery_avg_angle + recovery_zone_extent / wheel_radius
+    )
+
+    # Generate arc points for the push ideal zone
+    arc1 = np.linspace(push_zone_start_rad, push_zone_end_rad, 100)
     x1 = np.concatenate([[0], wheel_radius * np.cos(arc1), [0]])
     y1 = np.concatenate([[0], wheel_radius * np.sin(arc1), [0]])
 
-    # Plot the valid angle zone
-    ax.fill(x1, y1, color="green", alpha=0.3, label=f"Valid zone")
+    # Plot the push ideal zone
+    ax.fill(x1, y1, color="green", alpha=0.3, label="Ideal Zone")
 
-    # Define the angles for the second valid angle zone (symmetric)
-    valid_angle_start_rad_sym = np.pi - valid_angle_start_rad
-    valid_angle_end_rad_sym = np.pi - valid_angle_end_rad
-
-    # Generate arc points for the symmetric valid angle zone
-    arc2 = np.linspace(valid_angle_start_rad_sym, valid_angle_end_rad_sym, 100)
+    # Generate arc points for the recovery ideal zone
+    arc2 = np.linspace(recovery_zone_start_rad, recovery_zone_end_rad, 100)
     x2 = np.concatenate([[0], wheel_radius * np.cos(arc2), [0]])
     y2 = np.concatenate([[0], wheel_radius * np.sin(arc2), [0]])
 
-    # Plot the symmetric valid angle zone
+    # Plot the recovery ideal zone
     ax.fill(x2, y2, color="green", alpha=0.3)
 
     ax.set_xlim(-wheel_radius - 0.1, wheel_radius + 0.1)
     ax.set_ylim(-wheel_radius - 0.1, wheel_radius + 0.1)
     ax.set_aspect("equal", "box")
-    ax.set_title("Wheelchair Wheel with Push Angles")
+    ax.set_title("Wheelchair wheel with push angles")
     ax.set_xlabel("X Position (m)")
     ax.set_ylabel("Y Position (m)")
-    ax.legend()
-
-    # Enable grid lines
-    ax.grid(True, which="both")  # Major and minor grid lines
-    ax.minorticks_on()  # Enable minor ticks
+    ax.legend(loc="lower left")
 
 
 def plot_min_distance_setup(ax):
-    # Draw the vertical rectangle representing the wheel radius
+    rect_width = 0.1
+
+    rectangle_bottom = user_arm_extended_distance
+    rectangle_top = user_arm_extended_distance + wheel_radius + 0.10
+    rectangle_height = rectangle_top - rectangle_bottom
+
     wheel_rect = plt.Rectangle(
-        (-0.05, 0), 0.1, wheel_radius, color="blue", alpha=0.1
-    )  # Expanded to 0.1 width
+        (-rect_width / 2, rectangle_bottom),
+        rect_width,
+        rectangle_height,
+        color="blue",
+        alpha=0.1,
+    )
     ax.add_patch(wheel_rect)
 
-    # Draw the ideal hand position zone
     ideal_zone_bottom = user_arm_extended_distance
-    ideal_zone_top = (
-        user_arm_extended_distance + 0.05
-    )  # 15 cm above maximum extension
+    ideal_zone_top = average_min_distance * 0.90
+    ideal_zone_height = ideal_zone_top - ideal_zone_bottom
+
     ideal_zone_rect = plt.Rectangle(
-        (-0.05, ideal_zone_bottom),
-        0.1,
-        ideal_zone_top - ideal_zone_bottom,
+        (-rect_width / 2, ideal_zone_bottom),
+        rect_width,
+        ideal_zone_height,
         color="green",
         alpha=0.3,
-    )  # Green color
+    )
     ax.add_patch(ideal_zone_rect)
 
-    ax.set_title("Ideal Hand Position Zone")
-    ax.set_xlim(-0.1, 0.1)  # Adjusted to better fit the rectangle width
-    ax.set_ylim(0, wheel_radius)  # Bottom of the y-axis at 0
+    ax.set_xlim(-rect_width / 2, rect_width / 2)
+    ax.set_ylim(rectangle_bottom - 0.1, rectangle_top)
     ax.set_aspect("equal", "box")
     ax.set_xlabel("X Position (m)")
     ax.set_ylabel("Y Position (m)")
-    ax.grid(True, which="both")  # Major and minor grid lines
-    ax.minorticks_on()  # Enable minor ticks
+
+    ax.set_xticks([])
+    ax.set_xticklabels([])
 
 
 def update_push_angle_plot(
     ax1, push_positions, recovery_positions, wheel_radius
 ):
     ax1.clear()
-    plot_wheel_setup(ax1)  # Correct call with a single argument
+    plot_wheel_setup(
+        ax1, average_push_position, average_recovery_position
+    )  # Correct call with a single argument
 
     # Calculate average positions of pushes every 3 pushes
     average_push_positions = []
     average_recovery_positions = []
     for i in range(2, len(push_positions), 3):
-        avg_push_position = np.mean(push_positions[i - 2 : i + 1], axis=0)
+        avg_push_position = np.mean(
+            push_positions[i - frequency_average - 1 : i + 1], axis=0
+        )
         avg_recovery_position = np.mean(
-            recovery_positions[i - 2 : i + 1], axis=0
+            recovery_positions[i - frequency_average - 1 : i + 1], axis=0
         )
         average_push_positions.append(avg_push_position)
         average_recovery_positions.append(avg_recovery_position)
@@ -331,29 +360,22 @@ def update_push_angle_plot(
         for collection in ax1.collections:
             collection.remove()
 
-        # Fill the "pizza slice" area with color
-        ax1.fill(
-            x,
-            y,
-            color="yellow",
-            alpha=0.3,
-            label="Push angle zone",
-        )
-
         # Plot the lines of average push and recovery positions
         ax1.plot(
             [0, avg_push_pos[0] * push_ratio],
             [0, avg_push_pos[1] * push_ratio],
             linestyle="-",
             color="b",
-            label="Push Line",
+            linewidth=3,
+            label="Push line",
         )
         ax1.plot(
             [0, avg_recovery_pos[0] * recovery_ratio],
             [0, avg_recovery_pos[1] * recovery_ratio],
             linestyle="-",
             color="g",
-            label="Recovery Line",
+            linewidth=3,
+            label="Recovery line",
         )
 
     # Set axes and legends for the plot
@@ -365,102 +387,67 @@ def update_push_angle_plot(
     # Display the plot
     plt.tight_layout()
     plt.draw()
-    plt.pause(0.01)
-
-
-def update_min_distance_plot(ax, minimum_recovery_distances):
-
-    ax.clear()
-    plot_min_distance_setup(ax)
-
-    averaged_distances = []
-
-    if len(minimum_recovery_distances) >= 3:
-        for i in range(2, len(minimum_recovery_distances), 3):
-            distances_for_three_recoveries = minimum_recovery_distances[
-                i - 2 : i + 1
-            ]
-            avg_min_distance = np.mean(distances_for_three_recoveries)
-            averaged_distances.append(avg_min_distance)
-
-        # Plot only the last calculated average
-        if averaged_distances:
-            ax.axhline(
-                y=averaged_distances[-1],
-                color="r",
-                linestyle="-",
-                linewidth=2,
-                label=f"Real-time Average: {averaged_distances[-1]:.2f}",
-            )
-
-    # Add the legend only once after plotting the last average
-    if averaged_distances:
-        ax.legend()
-
-    plt.draw()
-    plt.pause(0.01)
+    plt.pause(0.1)
 
 
 def update_min_distance_plot(ax, minimum_recovery_distances):
     ax.clear()
     plot_min_distance_setup(ax)
 
-    averaged_distances = []
+    if minimum_recovery_distances:
+        ax.axhline(
+            y=minimum_recovery_distances[-1],
+            color="r",
+            linestyle="-",
+            linewidth=2,
+            label=f"Average minimum distance over {frequency_average} recoveries: {minimum_recovery_distances[-1]:.2f}",
+        )
 
-    if len(minimum_recovery_distances) >= 3:
-        for i in range(2, len(minimum_recovery_distances), 3):
-            distances_for_three_recoveries = minimum_recovery_distances[
-                i - 2 : i + 1
-            ]
-            avg_min_distance = np.mean(distances_for_three_recoveries)
-            averaged_distances.append(avg_min_distance)
-
-        # Tracer uniquement la dernière moyenne calculée
-        if averaged_distances:
-            ax.axhline(
-                y=averaged_distances[-1],
-                color="r",
-                linestyle="-",
-                linewidth=2,
-                label=f"Moyenne en temps réel: {averaged_distances[-1]:.2f}",
-            )
-
-    # Ajouter la légende une seule fois après avoir tracé la dernière moyenne
-    if averaged_distances:
-        ax.legend()
+        # Add legend only if there is at least one distance to display
+        ax.legend(loc="lower left")
 
     plt.draw()
-    plt.pause(0.01)
+    plt.pause(0.1)
 
 
 def main():
+    # Ask which graph to display
+    print("Which graph would you like to display?")
+    print("1: Push Angles")
+    print("2: Minimum Distances")
+    choice = input("Enter 1 or 2: ")
+
+    # Initialize variables
     ot.start()
     ts = ktk.TimeSeries()
     added_events = set()
-    minimum_recovery_distances = []
-    average_push_positions = []
-    average_recovery_positions = []
     pushes_indices = []
-    avg_push_positions = []
-    avg_recovery_positions = []
-    average_min_distances = []
     average_push_angles = []
+    minimum_recovery_distances = []
+    push_positions = []
+    recovery_positions = []
 
     plt.ion()  # Enable interactive mode
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
-    plot_wheel_setup(ax1)
+
+    # Create figures and axes
+    fig1, ax1 = plt.subplots(figsize=(8, 6))  # Push Angles
+    fig2, ax2 = plt.subplots(figsize=(8, 6))  # Minimum Distances
+
+    plot_wheel_setup(ax1, average_push_position, average_recovery_position)
     plot_min_distance_setup(ax2)
 
-    push_scatter = ax1.scatter([], [], color="blue", label="Pushes", zorder=5)
-    recovery_scatter = ax1.scatter(
-        [], [], color="red", label="Recoveries", zorder=5
-    )
-    avg_push_scatter = ax1.scatter(
-        [], [], color="green", label="Average Pushes", zorder=10
-    )
-    avg_recovery_scatter = ax1.scatter(
-        [], [], color="orange", label="Average Recoveries", zorder=10
-    )
+    # Determine which graph to display based on user choice
+    if choice == "1":
+        current_fig = fig1
+        current_ax = ax1
+        plt.close(fig2)  # Close the second figure
+    elif choice == "2":
+        current_fig = fig2
+        current_ax = ax2
+        plt.close(fig1)  # Close the first figure
+    else:
+        print("Invalid choice. Displaying both graphs.")
+        current_fig = None
 
     try:
         while True:
@@ -510,22 +497,23 @@ def main():
                     reco_indices
                 ][:, :2]
 
-                # Adjust the positions so that they fit into the plot with the center at (0,0)
-                push_positions_adjusted = (
-                    push_positions - wheel_center_position[:2]
-                )
-                recovery_positions_adjusted = (
-                    recovery_positions - wheel_center_position[:2]
-                )
+                if current_ax == ax1:
+                    update_push_angle_plot(
+                        current_ax,
+                        push_positions,
+                        recovery_positions,
+                        wheel_radius,
+                    )
+                elif current_ax == ax2:
+                    update_min_distance_plot(
+                        current_ax, minimum_recovery_distances
+                    )
 
-                update_push_angle_plot(
-                    ax1, push_positions, recovery_positions, wheel_radius
-                )
-                update_min_distance_plot(ax2, minimum_recovery_distances)
-                plt.show()
+                if current_fig:
+                    current_fig.canvas.draw()
+                    current_fig.canvas.flush_events()
 
-            # Sleep for a short duration to avoid overloading the loop
-            time.sleep(0.01)
+            plt.pause(1)
 
     except KeyboardInterrupt:
         pass
@@ -542,25 +530,57 @@ def main():
         # Calculate push rate
         push_rate = calculate_push_rate(ts, pushes_indices)
 
-        # Create a DataFrame
-        data = {
-            "Average Push Angles (degrees)": average_push_angles,
-            "Minimum Distances (meters)": minimum_recovery_distances,
-            "Push Rate (pushes/sec)": [push_rate]
-            * len(average_push_angles),  # Repeat the push rate for each row
-        }
-        df = pd.DataFrame(data)
-        df = df.round(
-            2
-        )  # Round all values in the DataFrame to two decimal places
-        print(df)
+        if len(average_push_angles) > 0 or len(minimum_recovery_distances) > 0:
+            # Ensure both lists have the same length by filling the shorter one with NaNs
+            min_length = min(
+                len(average_push_angles), len(minimum_recovery_distances)
+            )
+            average_push_angles = average_push_angles[:min_length]
+            minimum_recovery_distances = minimum_recovery_distances[
+                :min_length
+            ]
 
-        # Save DataFrame to CSV
-        df.to_csv("output_data.csv", index=False)
+            # Calculate average positions of pushes and recoveries
+            if len(push_positions) > 0:
+                avg_push_position = np.mean(push_positions, axis=0)
+            else:
+                avg_push_position = [np.nan, np.nan]
 
-        # Plot new_ts if it has unique timestamps
-        if new_ts is not None:
-            new_ts.plot()
+            if len(recovery_positions) > 0:
+                avg_recovery_position = np.mean(recovery_positions, axis=0)
+            else:
+                avg_recovery_position = [np.nan, np.nan]
+
+            # Print average positions
+            print(f"Average push position: {avg_push_position}")
+            print(f"Average recovery position: {avg_recovery_position}")
+
+            if minimum_recovery_distances:
+                average_min_distance = np.mean(minimum_recovery_distances)
+            else:
+                average_min_distance = 0
+            average_min_distance = round(average_min_distance, 2)
+            print(f"Average min distance: {average_min_distance}")
+
+            # Create a DataFrame
+            data = {
+                "Average push angles (degrees)": average_push_angles,
+                "Minimum distances (meters)": minimum_recovery_distances,
+                "Push rate (pushes/sec)": [push_rate]
+                * len(average_push_angles),
+            }
+            df = pd.DataFrame(data)
+            df = df.round(
+                2
+            )  # Round all values in the DataFrame to two decimal places
+            print(df)
+
+            # Save DataFrame to CSV
+            df.to_csv("output_data.csv", index=False)
+
+            # Plot new_ts if it has unique timestamps
+            if new_ts is not None:
+                new_ts.plot()
 
         ot.stop()
 
