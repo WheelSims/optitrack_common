@@ -13,13 +13,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Initialize the wheel center position
-wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
+wheel_center_position = np.array([0.447245, 0.658389, -0.206452, 1])
 # Initialize the wheel radius
 wheel_radius = 0.255
 # Initialize the user arm extended distance between his hand and the wheel center
-user_arm_extended_distance = 0.148
-threshold_min = -6
-threshold_max = 7
+user_arm_extended_distance = 0.18086249
+threshold_min = -2
+threshold_max = 5
 average_push_position = [0.63019762, 0.84031197]
 average_recovery_position = [0.33883759, 0.87112703]
 average_min_distance = 0.23

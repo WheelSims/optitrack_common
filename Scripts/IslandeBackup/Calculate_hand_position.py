@@ -11,8 +11,8 @@ import time
 import matplotlib.pyplot as plt
 
 # Initialize the wheel center position
-wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
-handmarker_position = np.array([0.4391138, 0.749336, -0.079596, 1])
+wheel_center_position = np.array([0.447245, 0.658389, -0.206452, 1])
+handmarker_position = np.array([0.453226, 0.800979, -0.082482, 1])
 # Initialize the wheel radius
 distances_marker = [
     np.linalg.norm(handmarker_position - wheel_center_position)

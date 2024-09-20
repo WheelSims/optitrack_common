@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 import time
 
 # Initialize the wheel center position
-wheel_center_position = np.array([0.444269, 0.658312, -0.209179, 1])
+wheel_center_position = np.array([0.447245, 0.658389, -0.206452, 1])
 # Initialize the wheel radius
 wheel_radius = 0.255
-threshold_min = -4
-threshold_max = 6
+threshold_min = -2
+threshold_max = 5
 
 
 def detect_events(ts):
