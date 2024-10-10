@@ -19,7 +19,7 @@ plt.close("all")
 pygame.mixer.init()
 
 # Load music files
-music_correct = r"C:\Users\MOSA\Documents\optitrack_common\Scripts\ludovico_einaudi_-_nuvole_bianche1.mp3"
+music_correct = r"C:\Users\MOSA\Documents\optitrack_common\Scripts\Ludovico-Einaudi-Nuvole-Bianche_63883871_1_edit.mp3"
 
 music_incorrect = (
     r"C:\Users\MOSA\Documents\optitrack_common\Scripts\Pat O Mat 1 (128).mp3"
@@ -28,8 +28,8 @@ music_incorrect = (
 current_music = None
 
 # Positions and radii, recalculate for each user
-USER_INITIAL_MINIMAL_POSITION = 0.8302379071712493
-USER_ARM_EXTENDED_HAND_POSITION = 0.7597674179721523
+USER_INITIAL_MINIMAL_POSITION = 0.7128500938415527
+USER_ARM_EXTENDED_HAND_POSITION = 0.5649997748580633
 WHEEL_RADIUS = 0.255
 WHEEL_CENTER_POSITION = 0.658389  # y-coordinate of the wheel centre
 
@@ -43,8 +43,8 @@ upper_bound = USER_INITIAL_MINIMAL_POSITION - 0.1 * (
 
 # Number of last cycles to calculate cadence and lowest position
 # for biofeedback:
-BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES = 1
-BIOFEEDBACK_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 1
+BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES = 3
+BIOFEEDBACK_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 3
 # for calculating initial parameters:
 AVERAGE_CALCULATE_CADENCE_ON_N_CYCLES = 30
 AVERAGE_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 30
@@ -128,9 +128,15 @@ try:
         # Fetch the position data from OptiTrack
         ts = ot.fetch()
 
-        # Ensure we have something to process
+        # Ensure we have position data
         if len(ts.time) == 0:
-            continue
+            if current_music is not None:
+                pygame.mixer.music.pause()  # Pause the current music
+            continue  # Skip the rest of the loop and wait for the next data
+
+        # Resume music if paused
+        if pygame.mixer.music.get_busy() and current_music is not None:
+            pygame.mixer.music.unpause()
 
         # Calculate the mean and std of x in the last 10 seconds (to avoid
         # accumulating data where the participant is not propelling)
@@ -232,7 +238,7 @@ try:
                         pygame.mixer.music.load(
                             music_correct
                         )  # Load the new music
-                        pygame.mixer.music.play()  # Play musicA
+                        pygame.mixer.music.play()  # Play music
                         pygame.mixer.music.set_volume(1)
                         current_music = (
                             music_correct  # Update the current music tracker
@@ -247,11 +253,12 @@ try:
                         pygame.mixer.music.load(
                             music_incorrect
                         )  # Load the new music
-                        pygame.mixer.music.play()  # Play musicB
+                        pygame.mixer.music.play()  # Play music
                         pygame.mixer.music.set_volume(0.08)
                         current_music = (
                             music_incorrect  # Update the current music tracker
                         )
+
                 # if i == 0:
                 #     update_plot(hand_position)
         # plt.clf()
