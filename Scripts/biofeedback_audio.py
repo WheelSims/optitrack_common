@@ -28,10 +28,10 @@ music_incorrect = (
 current_music = None
 
 # Positions and radii, recalculate for each user
-USER_INITIAL_MINIMAL_POSITION = 0.7128500938415527
-USER_ARM_EXTENDED_HAND_POSITION = 0.5649997748580633
-WHEEL_RADIUS = 0.255
-WHEEL_CENTER_POSITION = 0.658389  # y-coordinate of the wheel centre
+USER_INITIAL_MINIMAL_POSITION = 0.7205475290616353
+USER_ARM_EXTENDED_HAND_POSITION = 0.6875775847510387
+WHEEL_RADIUS = 0.265
+WHEEL_CENTER_POSITION = 0.574133  # y-coordinate of the wheel centre
 
 # Define upper and lower bounds for desired hand position.
 
@@ -43,8 +43,8 @@ upper_bound = USER_INITIAL_MINIMAL_POSITION - 0.1 * (
 
 # Number of last cycles to calculate cadence and lowest position
 # for biofeedback:
-BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES = 3
-BIOFEEDBACK_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 3
+BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES = 1
+BIOFEEDBACK_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 1
 # for calculating initial parameters:
 AVERAGE_CALCULATE_CADENCE_ON_N_CYCLES = 30
 AVERAGE_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 30
@@ -114,8 +114,8 @@ BIOFEEDBACK_RECTANGLE_WIDTH = 0.1
 
 
 # Function to check the boundry for playing music
-def is_within_boundary(hand_position, lower_bound, upper_bound):
-    return lower_bound <= hand_position <= upper_bound
+def is_within_boundary(hand_position, upper_bound):
+    return hand_position <= upper_bound
 
 
 # Start the OptiTrack connection
@@ -229,7 +229,7 @@ try:
                 )
 
                 # Check if position is within the boundaries and play corresponding music
-                if is_within_boundary(hand_position, lower_bound, upper_bound):
+                if is_within_boundary(hand_position, upper_bound):
                     if (
                         current_music != music_correct
                     ):  # Check if we need to change the music

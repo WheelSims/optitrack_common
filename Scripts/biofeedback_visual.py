@@ -8,10 +8,10 @@ import time
 
 plt.close("all")
 # Positions and radii, recalculate for each user
-USER_INITIAL_MINIMAL_POSITION = 0.7128500938415527
-USER_ARM_EXTENDED_HAND_POSITION = 0.5649997748580633
-WHEEL_RADIUS = 0.255
-WHEEL_CENTER_POSITION = 0.658389  # y-coordinate of the wheel centre
+USER_INITIAL_MINIMAL_POSITION = 0.7205475290616353
+USER_ARM_EXTENDED_HAND_POSITION = 0.6875775847510387
+WHEEL_RADIUS = 0.265
+WHEEL_CENTER_POSITION = 0.574133  # y-coordinate of the wheel centre
 
 # Number of last cycles to calculate cadence and lowest position
 # for biofeedback:
