@@ -243,6 +243,8 @@ try:
                         current_music = (
                             music_correct  # Update the current music tracker
                         )
+                    elif not pygame.mixer.music.get_busy():
+                        pygame.mixer.music.play()
 
                 else:
                     if (
@@ -258,6 +260,8 @@ try:
                         current_music = (
                             music_incorrect  # Update the current music tracker
                         )
+                    elif not pygame.mixer.music.get_busy():
+                        pygame.mixer.music.play()
 
                 # if i == 0:
                 #     update_plot(hand_position)
