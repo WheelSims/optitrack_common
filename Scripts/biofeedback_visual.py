@@ -1,17 +1,24 @@
 # Biofeedback - Félix
+# Editted- Ateayeh
 
 import optitrack as ot
 import numpy as np
+import pandas as pd
 import kineticstoolkit.lab as ktk
 import matplotlib.pyplot as plt
 import time
 
 plt.close("all")
 # Positions and radii, recalculate for each user
-USER_INITIAL_MINIMAL_POSITION = 0.7205475290616353
-USER_ARM_EXTENDED_HAND_POSITION = 0.6875775847510387
+USER_INITIAL_MINIMAL_POSITION = 0.7468357046445211
+USER_ARM_EXTENDED_HAND_POSITION = 0.683444376975771
 WHEEL_RADIUS = 0.265
-WHEEL_CENTER_POSITION = 0.574133  # y-coordinate of the wheel centre
+WHEEL_CENTER_POSITION = 0.659715  # y-coordinate of the wheel centre
+name_file = "Aftertrain-P08"
+
+# Create lists to store data for Excel
+cadence_data = []
+hand_position_data = []
 
 # Number of last cycles to calculate cadence and lowest position
 # for biofeedback:
@@ -21,15 +28,14 @@ BIOFEEDBACK_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 1
 AVERAGE_CALCULATE_CADENCE_ON_N_CYCLES = 30
 AVERAGE_CALCULATE_LOWEST_HAND_POSITION_ON_N_CYCLES = 30
 
-
 # Misc graphic constants
 BIOFEEDBACK_RECTANGLE_WIDTH = 0.1
+
 
 # -----------------------------------
 
 
 def update_plot(current_lowest_position):
-
     # Prepare the figure for lowest hand position
     plt.clf()
 
@@ -158,6 +164,11 @@ try:
                     + " cycles = "
                     + str(cadence)
                 )
+                if (
+                    calculate_on_n_events
+                    == BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES
+                ):
+                    cadence_data.append(cadence)
 
         # Calculate the lowest hand position based on the N last events
         for i, calculate_on_n_events in enumerate(
@@ -194,13 +205,18 @@ try:
                 )
 
                 if i == 0:
+                    hand_position_data.append(hand_position)
                     update_plot(hand_position)
-        # plt.clf()
-        # ts.plot()
 
 except KeyboardInterrupt:
     pass
 
 finally:
+    # Save data to Excel at the end of the run
+    data = {"Cadence": cadence_data, "Hand Position": hand_position_data}
+    df = pd.DataFrame(data)
+    df.to_excel(f"{name_file}.xlsx", index=False)
+    print(f"Data saved to {name_file}.xlsx")
+
     # Stop the OptiTrack connection
     ot.stop()

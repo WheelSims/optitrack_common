@@ -2,7 +2,7 @@
 """
 Created on Sun Sep 29 17:16:34 2024
 
-@author: ateayeh
+@author: Ateayeh
 """
 
 
@@ -12,6 +12,7 @@ import kineticstoolkit.lab as ktk
 import matplotlib.pyplot as plt
 import time
 import pygame
+import pandas as pd
 
 plt.close("all")
 
@@ -28,10 +29,15 @@ music_incorrect = (
 current_music = None
 
 # Positions and radii, recalculate for each user
-USER_INITIAL_MINIMAL_POSITION = 0.7205475290616353
-USER_ARM_EXTENDED_HAND_POSITION = 0.6875775847510387
+USER_INITIAL_MINIMAL_POSITION = 0.7468357046445211
+USER_ARM_EXTENDED_HAND_POSITION = 0.683444376975771
 WHEEL_RADIUS = 0.265
-WHEEL_CENTER_POSITION = 0.574133  # y-coordinate of the wheel centre
+WHEEL_CENTER_POSITION = 0.659715  # y-coordinate of the wheel centre
+name_file = "Biofeedback_audio-P08"
+
+# Create lists to store data for Excel
+cadence_data = []
+hand_position_data = []
 
 # Define upper and lower bounds for desired hand position.
 
@@ -195,6 +201,12 @@ try:
                     + " cycles = "
                     + str(cadence)
                 )
+                if (
+                    calculate_on_n_events
+                    == BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES
+                ):
+                    if len(cadence_data) == 0 or cadence != cadence_data[-1]:
+                        cadence_data.append(cadence)
 
         # Calculate the lowest hand position based on the N last events
         for i, calculate_on_n_events in enumerate(
@@ -227,6 +239,16 @@ try:
                     + " cycles = "
                     + str(hand_position)
                 )
+                if (
+                    calculate_on_n_events
+                    == BIOFEEDBACK_CALCULATE_CADENCE_ON_N_CYCLES
+                ):
+                    if (
+                        len(hand_position_data) == 0
+                        or hand_position != hand_position_data[-1]
+                    ):
+
+                        hand_position_data.append(hand_position)
 
                 # Check if position is within the boundaries and play corresponding music
                 if is_within_boundary(hand_position, upper_bound):
@@ -272,6 +294,14 @@ except KeyboardInterrupt:
     pass
 
 finally:
+    # Save data to Excel at the end of the run
+    max_length = max(len(cadence_data), len(hand_position_data))
+    cadence_data.extend([None] * (max_length - len(cadence_data)))
+    hand_position_data.extend([None] * (max_length - len(hand_position_data)))
+    data = {"Cadence": cadence_data, "Hand Position": hand_position_data}
+    df = pd.DataFrame(data)
+    df.to_excel(f"{name_file}.xlsx", index=False)
+    print(f"Data saved to {name_file}.xlsx")
     # Stop the OptiTrack connection
     ot.stop()
     print("Stopping playback.")
